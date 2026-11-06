@@ -1,0 +1,162 @@
+-- Services
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local GuiService = game:GetService("GuiService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AntiAFKGui"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+pcall(function()
+	screenGui.Parent = CoreGui
+end)
+if not screenGui.Parent then
+	screenGui.Parent = playerGui
+end
+
+-- Create Circular Logo (ImageButton)
+local logoButton = Instance.new("ImageButton")
+logoButton.Name = "AntiAFKLogo"
+logoButton.Size = UDim2.new(0, 60, 0, 60)
+logoButton.Position = UDim2.new(0.85, 0, 0.2, 0)
+logoButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+logoButton.Image = "https://www.roblox.com/Thumbs/Asset.ashx?width=420&height=420&assetId=131000756298036"
+logoButton.ScaleType = Enum.ScaleType.Fit
+logoButton.AutoButtonColor = true
+logoButton.Parent = screenGui
+
+-- UICorner para maging pabilog
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(1, 0)
+uiCorner.Parent = logoButton
+
+-- UIStroke para sa border color (Red = Off, Green = On)
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Thickness = 3
+uiStroke.Color = Color3.fromRGB(200, 50, 50)
+uiStroke.Parent = logoButton
+
+-- State & Connections
+local antiAfkActive = false
+local afkConnection = nil
+local disconnectConnection = nil
+local promptConnection = nil
+
+local function toggleAntiAfk()
+	antiAfkActive = not antiAfkActive
+
+	if antiAfkActive then
+		uiStroke.Color = Color3.fromRGB(50, 200, 50)
+		
+		-- Notification kapag na-enable
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "Anti-AFK & Anti-KICK Activated",
+				Text = "Successfully Executed Anti-AFK & Anti-KICK!",
+				Icon = "https://www.roblox.com/Thumbs/Asset.ashx?width=420&height=420&assetId=113281701497572",
+				Duration = 5
+			})
+		end)
+
+		-- Anti-AFK event connection
+		afkConnection = player.Idled:Connect(function()
+			VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+			task.wait(1)
+			VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+		end)
+
+		-- Anti-Disconnect & Auto Reconnect on Prompt Overlay
+		local promptGui = CoreGui:FindFirstChild("RobloxPromptGui")
+		if promptGui then
+			local promptOverlay = promptGui:FindFirstChild("promptOverlay")
+			if promptOverlay then
+				disconnectConnection = promptOverlay.ChildAdded:Connect(function(child)
+					if child.Name == "ErrorPrompt" then
+						task.wait(2)
+						TeleportService:Teleport(game.PlaceId, player)
+					end
+				end)
+			end
+		end
+
+		-- Anti-Kick / Error Message Connection
+		promptConnection = GuiService.ErrorMessageChanged:Connect(function()
+			task.wait(1)
+			TeleportService:Teleport(game.PlaceId, player)
+		end)
+
+	else
+		uiStroke.Color = Color3.fromRGB(200, 50, 50)
+		
+		-- Notification kapag na-disable
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "Anti-AFK & Anti-KICK Deactivated",
+				Text = "Anti-AFK & Anti-KICK has been turned off.",
+				Icon = "https://www.roblox.com/Thumbs/Asset.ashx?width=420&height=420&assetId=113281701497572",
+				Duration = 5
+			})
+		end)
+
+		if afkConnection then 
+			afkConnection:Disconnect() 
+			afkConnection = nil 
+		end
+		if disconnectConnection then
+			disconnectConnection:Disconnect()
+			disconnectConnection = nil
+		end
+		if promptConnection then 
+			promptConnection:Disconnect() 
+			promptConnection = nil 
+		end
+	end
+end
+
+-- Click Event para i-on/off ang Anti-AFK gamit ang Logo
+logoButton.MouseButton1Click:Connect(toggleAntiAfk)
+
+-- Draggable Functionality (Mouse & Touch) para sa Logo
+local dragging = false
+local dragInput, dragStart, startPos
+
+logoButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = logoButton.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+logoButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - dragStart
+		logoButton.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
